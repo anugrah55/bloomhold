@@ -6,7 +6,7 @@
 
 Build by day. When night falls, the grey Gloom drifts in, and every one you paint bursts into butterflies.
 
-*A chill, candy-colored kingdom builder inspired by the look of [Thronefall](https://store.steampowered.com/app/2239150/Thronefall/).
+*A chill, candy-colored kingdom builder.
 Made to feel good slowly. Headphones on.*
 
 **[▶ Play in your browser](https://YOUR-USERNAME.github.io/bloomhold/)**
