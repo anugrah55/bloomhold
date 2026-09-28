@@ -16,14 +16,14 @@ const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3();
 // ============================================================================
 const NOVA_AT = 5;
 const Combo = {
-  n: 0, t: 0, ready: false, stopT: 0, slowT: 0,
+  n: 0, t: 0, ready: false, stopT: 0, slowT: 0, lockT: 0,
   add(x, y, z, color) {
-    if (G.state !== 'night') return;
+    if (G.state !== 'night' || this.lockT > 0) return;
     this.n++; this.t = 3.2;
     if (this.n >= 2) popText('×' + this.n, x, y + 2.2, z);
     if (this.n >= NOVA_AT && !this.ready) {
       this.ready = true;
-      UI.toast('<b>Bloom Nova ready</b>&nbsp;· press E');
+      UI.toast(`<b>Bloom Nova ready</b>&nbsp;· ${UI.isTouch ? 'tap Burst' : Input.last === 'pad' ? 'press X' : 'press E'}`);
       AudioEngine.play('achievement', { vol: 0.6 });
     }
   },
@@ -179,6 +179,7 @@ const Player = {
   },
   nova() {
     Combo.ready = false; Combo.n = 0;
+    Combo.lockT = 3; // the Nova's own kills don't recharge it (counts only while the game runs)
     this.burstCd = 9;
     const { x, y, z } = this.pos;
     const cols = flowerColors();
@@ -274,7 +275,9 @@ const Player = {
         Combo.hitStop(0.07); Cam.shake(0.25);
         Rings.emit(e.x, e.y + 0.2, e.z, { color: col, r0: 0.2, r1: 2.4, life: 0.35, bright: 2.4 });
         Sparkles.emit(e.x, e.y + e.hitH, e.z, { n: 18, color: [col, 0xffffff], speed: 7, life: 0.5, size: 0.5, up: 1, bright: 2.2 });
-        popText('Petal Strike', e.x, e.y + 3, e.z);
+        const hn = this.dashHits ? this.dashHits.size : 1;
+        popText(hn === 1 ? 'Petal Strike' : hn === 2 ? 'Double!' : hn === 3 ? 'Triple!' : 'Petal Storm!', e.x, e.y + 3, e.z);
+        if (hn >= 2) Combo.hitStop(0.05 + hn * 0.01);
         AudioEngine.play('hit', { vol: 0.9 }); AudioEngine.play('chime', { vol: 0.4 });
       }
     } else {
@@ -431,7 +434,9 @@ const Heart = {
   update(dt, time) {
     if (!this.obj) return;
     const ud = this.obj.userData;
-    if (ud.crown) { const s = 1 + Math.sin(time * 1.1) * 0.012; ud.crown.scale.set(s, 1 + Math.sin(time * 1.1 + 0.6) * 0.015, s); ud.crown.rotation.y = Math.sin(time * 0.3) * 0.03; }
+    this.pulse = Math.max(0, (this.pulse || 0) - dt * 2.5);
+    const pk = Math.sin(this.pulse * Math.PI) * 0.07;
+    if (ud.crown) { const s = 1 + Math.sin(time * 1.1) * 0.012 + pk; ud.crown.scale.set(s, 1 + Math.sin(time * 1.1 + 0.6) * 0.015 + pk, s); ud.crown.rotation.y = Math.sin(time * 0.3) * 0.03; }
     if (ud.core) { const s = 1 + Math.sin(time * 2.2) * 0.07; ud.core.scale.setScalar(s); }
     this.hurtT = Math.max(0, this.hurtT - dt);
     this.alertT = Math.max(0, (this.alertT || 0) - dt);
@@ -546,7 +551,7 @@ class Plot {
   }
   save() {
     const ps = G.isleSave.plots;
-    if (this.level || this.paid) ps[this.id] = { l: this.level, p: this.paid }; else delete ps[this.id];
+    if (this.level || this.paid) ps[this.id] = { l: this.level, p: this.paid, w: this.grey ? 1 : 0 }; else delete ps[this.id];
     saveSoon();
   }
   // one spark leaves the player
@@ -591,17 +596,37 @@ class Plot {
   }
   setGrey(g, animate = true) {
     if (!this.obj || this.grey === g) return;
-    this.grey = g;
+    for (let i = Wobbles.length - 1; i >= 0; i--) if (Wobbles[i].o === this.obj) Wobbles.splice(i, 1);
+    this.grey = g; this.mending = false;
     setGreyMaterials(this.obj, g);
+    const o = this.obj;
     if (g) {
-      AudioEngine.play('grey', { pan: panOf(this.x) });
-      Sparkles.emit(this.x, this.y + 1.5, this.z, { n: 24, color: [0x8b86a3, 0x5d5870], speed: 3, life: 1.2, size: 0.5, bright: 0.9 });
+      // wrecked: slumped, tilted and sunk into the ground until the Heart mends it
+      this.hp = 0; this.grow = -1;
+      o.rotation.set((Math.random() - 0.5) * 0.3, this.rot, (Math.random() < 0.5 ? -1 : 1) * rr(0.14, 0.26));
+      o.scale.set(1.06, 0.6, 1.06);
+      o.position.y = this.y - 0.32;
+      if (animate) {
+        AudioEngine.play('grey', { pan: panOf(this.x) });
+        Cam.shake(0.2);
+        if (G.time - (Game.wreckToastT || -99) > 6) { Game.wreckToastT = G.time; UI.toast(`Your ${this.def.name} was wrecked`); }
+        Sparkles.emit(this.x, this.y + 1.5, this.z, { n: 24, color: [0x8b86a3, 0x5d5870], speed: 3, life: 1.2, size: 0.5, bright: 0.9 });
+        Confetti.emit(this.x, this.y + 1.5, this.z, { n: 22, color: [0x7a6f8a, 0x9a8f9a, 0x5d5870, 0xb8a898], speed: 5, up: 5, size: 0.3, flutter: 0.3, life: 3 });
+      }
+      this.save();
     } else {
       this.hp = this.maxHp;
+      o.rotation.set(0, this.rot, 0);
+      o.position.y = this.y;
+      o.scale.set(1, 1, 1);
       if (animate) {
-        this.grow = 0.35;
-        Sparkles.emit(this.x, this.y + 1.2, this.z, { n: 26, color: flowerColors(), speed: 4, life: 1, size: 0.45 });
+        this.grow = 0;
+        Sparkles.emit(this.x, this.y + 1.2, this.z, { n: 36, color: flowerColors(), speed: 5, life: 1.1, size: 0.5, bright: 1.8 });
+        Confetti.emit(this.x, this.y + 1.5, this.z, { n: 24, color: flowerColors(), speed: 5, up: 7 });
+        Rings.emit(this.x, this.y, this.z, { color: G.isle.pal.accent, r0: 0.4, r1: this.rad * 2.2, life: 0.7, bright: 2 });
+        Butterflies.burst(this.x, this.y + 1, this.z, 2);
       }
+      this.save();
     }
   }
   update(dt, time) {
@@ -628,6 +653,7 @@ class Plot {
       if (t >= 1) { this.grow = -1; o.scale.set(1, 1, 1); }
     }
     this.shakeT = Math.max(0, this.shakeT - dt);
+    if (this.grey && Math.random() < dt * 2.5) Sparkles.emit(this.x + rr(-0.8, 0.8), this.y + rr(0.6, 1.8), this.z + rr(-0.8, 0.8), { n: 1, color: 0x8b86a3, speed: 0.3, up: 1.2, life: 1.6, size: 0.7, gravity: 0.2, bright: 0.6 });
     o.position.x = this.x + (this.shakeT > 0 ? Math.sin(time * 80) * 0.06 : 0);
     const ud = o.userData;
     if (ud.spin && !this.grey) for (const s of ud.spin) s.obj.rotation[s.axis || 'y'] += (s.speed || 1) * dt;
@@ -741,7 +767,7 @@ class Enemy {
       }
     }
     Combo.add(x, y, z, this.paint);
-    if (Combo.n >= 2 || this.type === 'boss') { starBurst(x, y, z, this.type === 'boss' ? 2 : 1 + Math.min(Combo.n, 6) * 0.08); Combo.hitStop(0.045); }
+    if (Combo.n >= 2 || this.type === 'boss' || Combo.lockT > 0) { starBurst(x, y, z, this.type === 'boss' ? 2 : 1 + Math.min(Combo.n, 6) * 0.08); Combo.hitStop(0.045); }
     Game.onHealed(this);
   }
   fade() { // dissolves without reward (when the Heart dims)

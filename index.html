@@ -114,7 +114,8 @@ kbd{font-family:var(--ui);font-weight:700;font-size:.78em;padding:.05em .45em;bo
 .edge .ar{position:absolute;inset:5px;border-radius:50%;background:var(--c);box-shadow:0 4px 16px rgba(20,6,40,.4),inset 0 0 0 2px rgba(255,255,255,.35)}
 .edge .ar::after{content:"";position:absolute;right:-10px;top:50%;margin-top:-7px;border-style:solid;border-width:7px 0 7px 11px;border-color:transparent transparent transparent var(--c)}
 .edge b{position:relative;font-weight:800;font-size:13px;color:#fff;line-height:1}
-.edge.heart{--c:#ff5f9e}.edge.heart.on{animation:beat .9s ease-in-out infinite}
+.edge.heart{--c:#ff5f9e}.edge.heart.on{animation:beatScale .9s ease-in-out infinite}
+@keyframes beatScale{50%{scale:1.15}}
 .edge.guide{--c:var(--accent)}
 @keyframes beat{50%{transform:scale(1.15)}}
 .plabel svg{width:14px;height:14px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -128,6 +129,15 @@ kbd{font-family:var(--ui);font-weight:700;font-size:.78em;padding:.05em .45em;bo
 #combo .cmeter i{display:block;height:100%;width:0;border-radius:7px;background:linear-gradient(90deg,#ff7ab8,#ffd36b,#7fe7ff,#b9ffb0);transition:width .15s}
 #combo.ready{background:linear-gradient(100deg,rgba(255,122,184,.55),rgba(127,231,255,.5));animation:pulse 1s ease-in-out infinite}
 #burst.nova .orb{background:conic-gradient(#ff7ab8,#ffd36b,#b9ffb0,#7fe7ff,#b47cff,#ff7ab8);animation:pulse .8s ease-in-out infinite}
+#moves{position:absolute;left:calc(16px + var(--safe-l));bottom:calc(84px + var(--safe-b));display:flex;flex-direction:column;gap:6px;padding:10px 14px;border-radius:16px;font-size:13px;font-weight:600;color:var(--cream-dim)}
+#moves div{display:flex;align-items:center;gap:9px}
+#moves b{color:var(--cream);margin-right:4px}
+#moves kbd{min-width:44px;text-align:center}
+#moves.cd .mv1{opacity:.45;transition:opacity .15s}
+#moves .mv1{transition:opacity .3s}
+@media (max-width:640px){#moves{font-size:12px;padding:8px 11px;max-width:calc(100vw - 190px)}#moves span{display:flex;flex-direction:column;gap:1px}#moves kbd{min-width:38px}}
+#moves.ready div:last-child b{background:linear-gradient(90deg,#ff7ab8,#ffd36b,#7fe7ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.touch #moves{bottom:calc(24px + var(--safe-b))}
 .pop{position:absolute;left:0;top:0;font-family:var(--display);font-size:30px;white-space:nowrap;pointer-events:none;padding:0 .25em;background:linear-gradient(90deg,#fff3b0,#ff7ab8 45%,#7fe7ff);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 3px 0 rgba(60,20,90,.55));animation:popUp .9s cubic-bezier(.2,1.4,.4,1) forwards}
 @keyframes popUp{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}20%{opacity:1;transform:translate(-50%,-90%) scale(1.15)}100%{opacity:0;transform:translate(-50%,-180%) scale(1)}}
 #nightbar.hurt .heart{animation:beat .5s ease-in-out infinite}
@@ -272,6 +282,7 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
   #hud-top{left:16px;right:16px;top:calc(68px + var(--safe-t));transform:none}
   #isleName{max-width:calc(100vw - 250px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   #guide{position:fixed;left:16px;right:16px;top:calc(118px + var(--safe-t));max-width:none;justify-content:center;margin:0}
+  .atnight #guide{display:none}
   #income{display:none}
   #isleName{font-size:22px}
   #sparks{font-size:22px}
@@ -322,6 +333,7 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
       <div class="k" id="pKey">Hold <kbd>Space</kbd> to build</div>
     </div>
 
+    <div id="moves" class="pill" hidden></div>
     <div id="burst" class="ready"><div class="orb"><span>E</span></div><div>Bloom Burst</div></div>
 
     <button id="nightBtn" hidden><svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg><span class="col"><span>Begin Night</span><span class="sub" id="nightSub">Enter</span></span></button>
@@ -5071,14 +5083,14 @@ const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3();
 // ============================================================================
 const NOVA_AT = 5;
 const Combo = {
-  n: 0, t: 0, ready: false, stopT: 0, slowT: 0,
+  n: 0, t: 0, ready: false, stopT: 0, slowT: 0, lockT: 0,
   add(x, y, z, color) {
-    if (G.state !== 'night') return;
+    if (G.state !== 'night' || this.lockT > 0) return;
     this.n++; this.t = 3.2;
     if (this.n >= 2) popText('×' + this.n, x, y + 2.2, z);
     if (this.n >= NOVA_AT && !this.ready) {
       this.ready = true;
-      UI.toast('<b>Bloom Nova ready</b>&nbsp;· press E');
+      UI.toast(`<b>Bloom Nova ready</b>&nbsp;· ${UI.isTouch ? 'tap Burst' : Input.last === 'pad' ? 'press X' : 'press E'}`);
       AudioEngine.play('achievement', { vol: 0.6 });
     }
   },
@@ -5234,6 +5246,7 @@ const Player = {
   },
   nova() {
     Combo.ready = false; Combo.n = 0;
+    Combo.lockT = 3; // the Nova's own kills don't recharge it (counts only while the game runs)
     this.burstCd = 9;
     const { x, y, z } = this.pos;
     const cols = flowerColors();
@@ -5329,7 +5342,9 @@ const Player = {
         Combo.hitStop(0.07); Cam.shake(0.25);
         Rings.emit(e.x, e.y + 0.2, e.z, { color: col, r0: 0.2, r1: 2.4, life: 0.35, bright: 2.4 });
         Sparkles.emit(e.x, e.y + e.hitH, e.z, { n: 18, color: [col, 0xffffff], speed: 7, life: 0.5, size: 0.5, up: 1, bright: 2.2 });
-        popText('Petal Strike', e.x, e.y + 3, e.z);
+        const hn = this.dashHits ? this.dashHits.size : 1;
+        popText(hn === 1 ? 'Petal Strike' : hn === 2 ? 'Double!' : hn === 3 ? 'Triple!' : 'Petal Storm!', e.x, e.y + 3, e.z);
+        if (hn >= 2) Combo.hitStop(0.05 + hn * 0.01);
         AudioEngine.play('hit', { vol: 0.9 }); AudioEngine.play('chime', { vol: 0.4 });
       }
     } else {
@@ -5486,7 +5501,9 @@ const Heart = {
   update(dt, time) {
     if (!this.obj) return;
     const ud = this.obj.userData;
-    if (ud.crown) { const s = 1 + Math.sin(time * 1.1) * 0.012; ud.crown.scale.set(s, 1 + Math.sin(time * 1.1 + 0.6) * 0.015, s); ud.crown.rotation.y = Math.sin(time * 0.3) * 0.03; }
+    this.pulse = Math.max(0, (this.pulse || 0) - dt * 2.5);
+    const pk = Math.sin(this.pulse * Math.PI) * 0.07;
+    if (ud.crown) { const s = 1 + Math.sin(time * 1.1) * 0.012 + pk; ud.crown.scale.set(s, 1 + Math.sin(time * 1.1 + 0.6) * 0.015 + pk, s); ud.crown.rotation.y = Math.sin(time * 0.3) * 0.03; }
     if (ud.core) { const s = 1 + Math.sin(time * 2.2) * 0.07; ud.core.scale.setScalar(s); }
     this.hurtT = Math.max(0, this.hurtT - dt);
     this.alertT = Math.max(0, (this.alertT || 0) - dt);
@@ -5601,7 +5618,7 @@ class Plot {
   }
   save() {
     const ps = G.isleSave.plots;
-    if (this.level || this.paid) ps[this.id] = { l: this.level, p: this.paid }; else delete ps[this.id];
+    if (this.level || this.paid) ps[this.id] = { l: this.level, p: this.paid, w: this.grey ? 1 : 0 }; else delete ps[this.id];
     saveSoon();
   }
   // one spark leaves the player
@@ -5646,17 +5663,37 @@ class Plot {
   }
   setGrey(g, animate = true) {
     if (!this.obj || this.grey === g) return;
-    this.grey = g;
+    for (let i = Wobbles.length - 1; i >= 0; i--) if (Wobbles[i].o === this.obj) Wobbles.splice(i, 1);
+    this.grey = g; this.mending = false;
     setGreyMaterials(this.obj, g);
+    const o = this.obj;
     if (g) {
-      AudioEngine.play('grey', { pan: panOf(this.x) });
-      Sparkles.emit(this.x, this.y + 1.5, this.z, { n: 24, color: [0x8b86a3, 0x5d5870], speed: 3, life: 1.2, size: 0.5, bright: 0.9 });
+      // wrecked: slumped, tilted and sunk into the ground until the Heart mends it
+      this.hp = 0; this.grow = -1;
+      o.rotation.set((Math.random() - 0.5) * 0.3, this.rot, (Math.random() < 0.5 ? -1 : 1) * rr(0.14, 0.26));
+      o.scale.set(1.06, 0.6, 1.06);
+      o.position.y = this.y - 0.32;
+      if (animate) {
+        AudioEngine.play('grey', { pan: panOf(this.x) });
+        Cam.shake(0.2);
+        if (G.time - (Game.wreckToastT || -99) > 6) { Game.wreckToastT = G.time; UI.toast(`Your ${this.def.name} was wrecked`); }
+        Sparkles.emit(this.x, this.y + 1.5, this.z, { n: 24, color: [0x8b86a3, 0x5d5870], speed: 3, life: 1.2, size: 0.5, bright: 0.9 });
+        Confetti.emit(this.x, this.y + 1.5, this.z, { n: 22, color: [0x7a6f8a, 0x9a8f9a, 0x5d5870, 0xb8a898], speed: 5, up: 5, size: 0.3, flutter: 0.3, life: 3 });
+      }
+      this.save();
     } else {
       this.hp = this.maxHp;
+      o.rotation.set(0, this.rot, 0);
+      o.position.y = this.y;
+      o.scale.set(1, 1, 1);
       if (animate) {
-        this.grow = 0.35;
-        Sparkles.emit(this.x, this.y + 1.2, this.z, { n: 26, color: flowerColors(), speed: 4, life: 1, size: 0.45 });
+        this.grow = 0;
+        Sparkles.emit(this.x, this.y + 1.2, this.z, { n: 36, color: flowerColors(), speed: 5, life: 1.1, size: 0.5, bright: 1.8 });
+        Confetti.emit(this.x, this.y + 1.5, this.z, { n: 24, color: flowerColors(), speed: 5, up: 7 });
+        Rings.emit(this.x, this.y, this.z, { color: G.isle.pal.accent, r0: 0.4, r1: this.rad * 2.2, life: 0.7, bright: 2 });
+        Butterflies.burst(this.x, this.y + 1, this.z, 2);
       }
+      this.save();
     }
   }
   update(dt, time) {
@@ -5683,6 +5720,7 @@ class Plot {
       if (t >= 1) { this.grow = -1; o.scale.set(1, 1, 1); }
     }
     this.shakeT = Math.max(0, this.shakeT - dt);
+    if (this.grey && Math.random() < dt * 2.5) Sparkles.emit(this.x + rr(-0.8, 0.8), this.y + rr(0.6, 1.8), this.z + rr(-0.8, 0.8), { n: 1, color: 0x8b86a3, speed: 0.3, up: 1.2, life: 1.6, size: 0.7, gravity: 0.2, bright: 0.6 });
     o.position.x = this.x + (this.shakeT > 0 ? Math.sin(time * 80) * 0.06 : 0);
     const ud = o.userData;
     if (ud.spin && !this.grey) for (const s of ud.spin) s.obj.rotation[s.axis || 'y'] += (s.speed || 1) * dt;
@@ -5796,7 +5834,7 @@ class Enemy {
       }
     }
     Combo.add(x, y, z, this.paint);
-    if (Combo.n >= 2 || this.type === 'boss') { starBurst(x, y, z, this.type === 'boss' ? 2 : 1 + Math.min(Combo.n, 6) * 0.08); Combo.hitStop(0.045); }
+    if (Combo.n >= 2 || this.type === 'boss' || Combo.lockT > 0) { starBurst(x, y, z, this.type === 'boss' ? 2 : 1 + Math.min(Combo.n, 6) * 0.08); Combo.hitStop(0.045); }
     Game.onHealed(this);
   }
   fade() { // dissolves without reward (when the Heart dims)
@@ -6380,6 +6418,7 @@ const UI = {
         <kbd>E</kbd><span><b>Bloom Burst</b> paints every Gloom nearby and rings the flowers around you.</span>
         <kbd>Combo</kbd><span><b>Petal Strike:</b> dash (Shift) through Gloom at night. Paint 5 in a row for <b>Bloom Nova</b>, then press E.</span>
         <kbd>Enter</kbd><span><b>Begin the night</b> from anywhere.</span>
+        <kbd>R</kbd><span><b>Mend the kingdom</b> at the Heart. Wrecked buildings stay broken until you restore them.</span>
         <kbd>V</kbd><span><b>Vibe mode.</b> The camera drifts and time flows on its own.</span>
         <kbd>M</kbd><span><b>Islands</b> map.</span>
         <kbd>H</kbd><span><b>Hide the HUD.</b></span>
@@ -6526,7 +6565,7 @@ const Guide = {
     { text: () => 'Ride to the glowing ring', target: () => plotTarget(nearestPlot('tower') || nearestPlot()), done: () => !!Game.focus },
     { text: () => `Build a Paint Tower: ${holdWord()}`, target: () => plotTarget(nearestPlot('tower')), done: () => G.plots.some(p => p.type === 'tower' && p.level), skip: () => !nearestPlot('tower') },
     { text: () => 'Build a Cottage. It pays sparks every dawn', target: () => plotTarget(nearestPlot('cottage')), done: () => G.plots.some(p => p.type === 'cottage' && p.level), skip: () => !nearestPlot('cottage') || G.sparks < 3 && !nearestPlot('cottage').paid },
-    { text: () => `Ride to the Heart and ${holdWord()} to call the night`, target: () => ({ x: 0, y: Heart.y, z: 0, h: 9.5 }), done: () => G.state !== 'day' },
+    { text: () => Game.wrecked().length ? (G.sparks > 0 ? 'Mend the wrecked buildings at the Heart' : 'Out of sparks: begin the night to earn more') : `Ride to the Heart and ${holdWord()} to call the night`, target: () => ({ x: 0, y: Heart.y, z: 0, h: 9.5 }), done: () => G.state !== 'day' },
     { text: () => G.mode === 'zen' ? 'A quiet night. Ride through fireflies to collect them' : 'Ride to the Gloom. You and your towers paint them on your own', target: () => { const e = nearestEnemy(Player.pos.x, Player.pos.z, 80); return e && { x: e.x, y: e.y, z: e.z, h: 2.4 }; }, done: () => G.state === 'dawn' || G.state === 'day' },
     { text: () => 'Dawn pays every building. Spend it and keep growing', target: () => null, done: () => G.state === 'day' && Guide.dayT > 8 },
   ],
@@ -6624,6 +6663,7 @@ const Game = {
     if (G.isle) G.isle.dispose();
     // build
     G.isleIdx = idx; SAVE.current = idx;
+    this.mendInflight = 0; this.autoMend = false;
     const def = ISLANDS[idx];
     G.isle = generateIsland(def);
     Heart.init(G.isle, idx);
@@ -6631,7 +6671,7 @@ const Game = {
     G.plots = G.isle.plotSpots.map(s => new Plot(s, G.isle));
     G.plots.forEach(p => {
       const s = sv.plots[p.id];
-      if (s) { p.paid = s.p || 0; if (s.l) p.setLevel(s.l, false); }
+      if (s) { p.paid = s.p || 0; if (s.l) p.setLevel(s.l, false); if (s.l && s.w) p.setGrey(true, false); }
       p.setVisible(p.spot.unlock <= sv.nights || p.level > 0, false);
     });
     G.bunnies = Array.from({ length: 8 }, () => new Bunny(G.isle));
@@ -6752,6 +6792,7 @@ const Game = {
     }
   },
   travel(idx) {
+    this.autoMend = false;
     UI.closeModal();
     if (idx === G.isleIdx) return;
     if (G.vibe) this.toggleVibe(false);
@@ -6769,6 +6810,72 @@ const Game = {
     Achieve('travel1');
   },
 
+  wrecked() { return G.plots.filter(p => p.level && p.grey && !p.mending); },
+  repairCost() { return this.wrecked().reduce((s, p) => s + p.level * 2, 0); },
+  // Paid-in credit lives in each island's save, so it survives reloads and never leaks between islands.
+  get mendPaid() { return G.isleSave.mend || 0; },
+  set mendPaid(v) { G.isleSave.mend = Math.max(0, v); },
+  mendInflight: 0, mendT: 0, mendN: 0,
+  mendQueue() { return this.wrecked().sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z)); },
+  // Restore every wreck the credit already covers, nearest first.
+  settleMend() {
+    let head = this.mendQueue()[0];
+    while (head && this.mendPaid >= head.level * 2) {
+      this.mendPaid -= head.level * 2;
+      this.mendPlot(head);
+      head = this.mendQueue()[0];
+    }
+    if (!head && this.mendPaid) { G.sparks = G.sparks + this.mendPaid; this.mendPaid = 0; } // nothing left to mend: give credit back
+  },
+  // One spark flies from Floof into the Heart. It's only spent when it lands, so a coin cleared by travel or reset costs nothing.
+  mendOne() {
+    this.settleMend();
+    const q = this.mendQueue();
+    if (!q.length || this.mendPaid + this.mendInflight >= this.repairCost()) return 'full';
+    if (G.sparks - this.mendInflight <= 0) { AudioEngine.play('deny'); UI.deny(); return 'broke'; }
+    const isle = G.isle, pip = this.mendPaid + this.mendInflight;
+    this.mendInflight++;
+    Coins.fly({ x: Player.pos.x, y: Player.pos.y + 1.6, z: Player.pos.z }, () => ({ x: 0, y: Heart.y + 4.2, z: 0 }), 0.34, () => {
+      if (G.isle !== isle) return;
+      this.mendInflight = Math.max(0, this.mendInflight - 1);
+      if (G.sparks <= 0) return;
+      G.sparks = G.sparks - 1;
+      this.mendPaid = this.mendPaid + 1;
+      AudioEngine.play('coinPay', { i: pip, vol: 0.7 });
+      Sparkles.emit(0, Heart.y + 4.2, 0, { n: 6, color: [0xffd36b, isle.pal.accent], speed: 2.5, life: 0.6, size: 0.35, bright: 1.8 });
+      Heart.pulse = 1;
+      this.settleMend();
+      saveSoon();
+    }, 0, 1.6);
+    return 'paid';
+  },
+  mendPlot(p) {
+    const isle = G.isle, sv = G.isleSave, hy = Heart.y + 4.5;
+    p.mending = true;
+    Heart.pulse = 1;
+    Rings.emit(0, Heart.y, 0, { color: isle.pal.accent, r0: 0.8, r1: 9, life: 0.8, bright: 1.8 });
+    // a ribbon of light arcs from the Heart to the wreck
+    for (let k = 0; k <= 12; k++) setTimeout(() => {
+      if (G.isle !== isle) return;
+      const t = k / 12;
+      Sparkles.emit(p.x * t, lerp(hy, p.y + 1.5, t) + Math.sin(t * Math.PI) * 3.2, p.z * t, { n: 5, color: isle.pal.flower, speed: 0.6, up: 0.3, life: 0.8, size: 0.6, gravity: 0, bright: 2 });
+    }, k * 32);
+    setTimeout(() => {
+      if (G.isle !== isle) { if (sv.plots[p.id]) sv.plots[p.id].w = 0; saveSoon(); return; }
+      if (!p.grey) return;
+      p.setGrey(false, true);
+      AudioEngine.play('regrow', { pan: panOf(p.x) });
+      if (!G.plots.some(q => q.level && q.grey)) {
+        UI.banner('Restored', 'The Heart mended every broken home.');
+        AudioEngine.play('upgrade');
+        Rings.emit(0, Heart.y, 0, { color: 0xffffff, r0: 0.5, r1: 16, life: 1.2, bright: 1.6 });
+        Sparkles.emit(0, hy, 0, { n: 60, color: isle.pal.flower, speed: 7, up: 5, life: 1.4, size: 0.55, bright: 1.6 });
+        Butterflies.burst(0, hy, 0, 6);
+        Cam.shake(0.25);
+      }
+    }, 460);
+    saveSoon();
+  },
   // Enter / button: if sparks could still buy something, ask once more instead of starting right away
   requestNight() {
     if (G.state !== 'day' || G.vibe) return;
@@ -6826,8 +6933,9 @@ const Game = {
       }
     });
     // regrow
-    let delay = 0;
-    G.plots.forEach(p => { if (p.grey) { const pp = p; delay += 0.25; setTimeout(() => { pp.setGrey(false); AudioEngine.play('regrow', { pan: panOf(pp.x) }); }, 1500 + delay * 1000); } });
+    const wrecked = G.plots.filter(p => p.level && p.grey).length;
+    const dawnIsle = G.isle;
+    if (wrecked) setTimeout(() => { if (G.isle !== dawnIsle) return; const c = Math.max(0, this.repairCost() - this.mendPaid); UI.toast(`${wrecked} building${wrecked > 1 ? 's were' : ' was'} wrecked. Mend ${wrecked > 1 ? 'them' : 'it'} at the Heart for <b>${c} spark${c === 1 ? '' : 's'}</b>`); }, 4200);
     if (Heart.grey) setTimeout(() => { Heart.setGrey(false); AudioEngine.play('regrow'); }, 1200);
     Heart.hp = Heart.maxHp;
     if (counted) {
@@ -6915,6 +7023,7 @@ const Game = {
         if (e.update(dt, t)) { e.dispose(); G.enemies.splice(i, 1); }
       }
       G.plots.forEach(p => p.update(dt, t));
+      Combo.lockT = Math.max(0, (Combo.lockT || 0) - dt);
       G.sprites.forEach(s => s.update(dt, t));
       G.villagers.forEach(v => v.update(dt, t));
       G.bunnies.forEach(b => b.update(dt, t));
@@ -7060,7 +7169,7 @@ const Game = {
     let focus = null, fd = 2.1;
     if (st === 'day' && P.alive && !G.vibe) {
       for (const p of G.plots) {
-        if (!p.visible || p.level >= 3) continue;
+        if (!p.visible || p.level >= 3 || p.grey) continue;
         const d = p.type === 'hedge' ? segDist(P.pos.x, P.pos.z, p.ax, p.az, p.bx, p.bz) - 0.4 : Math.hypot(P.pos.x - p.x, P.pos.z - p.z) - (p.level ? p.radius : p.rad * 0.7);
         if (d < fd) { fd = d; focus = p; }
       }
@@ -7086,7 +7195,20 @@ const Game = {
     } else { this.payT = 0; this.payN = 0; }
     // heart: hold to call the night
     const nearHeart = st === 'day' && !focus && P.alive && Math.hypot(P.pos.x, P.pos.z) < 6.8 && !G.vibe;
-    if (nearHeart && holding) {
+    const mending = nearHeart && this.wrecked().length > 0 && !(this.travelT > 0);
+    if (mending && (Input.hit('KeyR') || (tapMode && pressed))) this.autoMend = true;
+    if (!mending) this.autoMend = false;
+    if (mending) { this.mendLock = true; if (this.auto === 'heart') this.auto = null; }
+    if (!holding) this.mendLock = false;
+    if (mending && (holding || this.autoMend)) {
+      this.mendT -= dt;
+      if (this.mendT <= 0) {
+        const r = this.mendOne();
+        if (r === 'paid') { this.mendN++; this.mendT = Math.max(0.06, 0.14 - this.mendN * 0.01); }
+        else { this.mendT = r === 'broke' ? 0.7 : 0.1; if (r === 'broke') this.autoMend = false; }
+      }
+    } else { this.mendT = 0; this.mendN = 0; }
+    if (nearHeart && holding && !mending && !this.mendLock) {
       this.holdT += dt;
       this.holdTick -= dt;
       if (this.holdTick <= 0) { this.holdTick = 0.22; AudioEngine.play('hold', { i: Math.floor(this.holdT / 0.22) }); }
@@ -7109,6 +7231,15 @@ const Game = {
         desc: d.desc[f.level],
         pips: cost, paid: f.paid,
         key: poor ? `You need ${need - G.sparks} more spark${need - G.sparks === 1 ? '' : 's'}. Paint Gloom or wait for dawn.` : holdHint(f.level ? 'upgrade' : 'build'),
+        poor,
+      });
+    } else if (this.nearHeart && this.wrecked().length) {
+      const n = this.wrecked().length, cost = this.repairCost(), left = cost - this.mendPaid - this.mendInflight, poor = G.sparks - this.mendInflight <= 0 && left > 0;
+      UI.setPrompt({
+        title: 'Mend the kingdom',
+        desc: `${n} building${n > 1 ? 's are' : ' is'} wrecked. Each one blooms back as soon as its sparks are paid, nearest first.`,
+        pips: Math.min(cost, 30), paid: Math.min(this.mendPaid, 30),
+        key: poor ? `Out of sparks. Begin the night (${touch ? 'the moon button' : Input.last === 'pad' ? '<kbd>Y</kbd>' : '<kbd>Enter</kbd>'}) and paint Gloom to earn more.` : holdHint('mend') + (Input.last === 'kb' ? ' · <kbd>R</kbd> mends all you can afford' : ''),
         poor,
       });
     } else if (this.nearHeart) {
@@ -7145,6 +7276,10 @@ const Game = {
         }
         for (const sc of sectors.values()) edges.push({ sx: sc.sx / sc.n, sy: sc.sy / sc.n, behind: sc.behind, kind: 'gloom', text: String(sc.n) });
       }
+      if (st === 'day' && this.wrecked().length && !this.nearHeart) {
+        const hp = Edges.project(0, Heart.y + 4, 0);
+        if (!Edges.onScreen(hp, 60)) edges.push({ ...hp, kind: 'heart', text: '♥' });
+      }
       if (Guide.target && st === 'day') {
         const gp = Edges.project(Guide.target.x, Guide.target.y + 1, Guide.target.z);
         if (!Edges.onScreen(gp, 40)) edges.push({ ...gp, kind: 'guide', text: '✦' });
@@ -7164,6 +7299,9 @@ const Game = {
     // touch controls only while riding
     const tb = SAVE.settings.buildMode === 'tap' ? 'Tap to build' : 'Hold to build';
     if (UI.cache.tb !== tb) { UI.cache.tb = tb; $('tBuild').textContent = tb; }
+    const tBuildHide = st !== 'day';
+    if ($('tBuild').hidden !== tBuildHide) $('tBuild').hidden = tBuildHide;
+    $('app').classList.toggle('atnight', st === 'night' || st === 'dusk');
     const tEl = $('touch');
     const tHide = G.vibe || !!UI.modal;
     if (tEl.hidden !== tHide) tEl.hidden = tHide;
@@ -7172,11 +7310,27 @@ const Game = {
     const showCombo = st === 'night' && G.mode !== 'zen' && (Combo.n >= 2 || Combo.ready);
     if (cb.hidden === showCombo) cb.hidden = !showCombo;
     if (showCombo) {
-      const ct = Combo.ready ? 'Bloom Nova ready · press E' : `Combo ×${Combo.n}`;
+      const novaKey = touch ? 'tap Burst' : Input.last === 'pad' ? 'press X' : 'press E';
+      const ct = Combo.ready ? `Bloom Nova ready · ${novaKey}` : `Combo ×${Combo.n}`;
       if (UI.cache.combo !== ct) { UI.cache.combo = ct; $('comboText').textContent = ct; cb.classList.toggle('ready', Combo.ready); }
-      $('comboFill').style.width = (Math.min(1, Combo.n / NOVA_AT) * 100 * (Combo.ready ? 1 : Math.max(0.15, Combo.t / 3.2) ** 0.3)).toFixed(0) + '%';
+      $('comboFill').style.width = (Combo.ready ? 100 : Math.min(1, Combo.n / NOVA_AT) * 100 * Math.max(0.15, Combo.t / 3.2) ** 0.3).toFixed(0) + '%';
     }
     $('burst').classList.toggle('nova', Combo.ready);
+    const mv = $('moves');
+    const showMoves = (st === 'night' || st === 'dusk') && G.mode !== 'zen' && !G.vibe && Player.alive;
+    if (mv.hidden === showMoves) mv.hidden = !showMoves;
+    if (showMoves) {
+      const t = touch ? 'touch' : Input.last === 'pad' ? 'pad' : 'kb';
+      const nova = Combo.ready ? 'ready, press now!' : Combo.n ? `combo ${Math.min(Combo.n, NOVA_AT)} / ${NOVA_AT}` : `after a ${NOVA_AT}-paint combo`;
+      if (UI.cache.moves !== t) {
+        UI.cache.moves = t; UI.cache.nova = '';
+        const k = t === 'pad' ? ['B', 'X'] : t === 'touch' ? ['Dash', 'Burst'] : ['Shift', 'E'];
+        mv.innerHTML = `<div class="mv1"><kbd>${k[0]}</kbd><span><b>Petal Strike</b> Dash through Gloom</span></div><div class="mv2"><kbd>${k[1]}</kbd><span><b>Bloom Nova</b> <i id="mvNova"></i></span></div>`;
+      }
+      if (UI.cache.nova !== nova) { UI.cache.nova = nova; $('mvNova').textContent = nova; }
+      mv.classList.toggle('ready', Combo.ready);
+      mv.classList.toggle('cd', Player.dashCd > 0);
+    }
     // night bar
     const nb = $('nightbar');
     const showNB = (st === 'night' || st === 'dusk') && G.mode !== 'zen';
@@ -7216,6 +7370,8 @@ const Game = {
           : `${icon}${near ? `<span class="nm">${p.def.name}</span>` : ''}<i class="gem"></i>${need}`;
         list.push({ x: p.x, y: p.y + h, z: p.z, html, cls: p === this.focus ? 'focus' : '', op: clamp(1.4 - d / 22, 0.35, 1) });
       }
+      for (const p of G.plots) if (p.grey && p.level && Math.hypot(p.x - P.x, p.z - P.z) < 26) list.push({ x: p.x, y: p.y + 2.2, z: p.z, html: p.mending ? 'Mending…' : 'Wrecked · mend at the Heart', cls: 'rift', op: 0.9 });
+      if (this.wrecked().length && !this.nearHeart) list.push({ x: 0, y: Heart.y + 10, z: 0, html: `Mend here&nbsp;<i class="gem"></i>${Math.max(0, this.repairCost() - this.mendPaid)}`, cls: 'focus', op: 1 });
       if (this.plan && G.mode !== 'zen') this.plan.rifts.forEach(ri => {
         const r = G.isle.rifts[ri];
         const kinds = {};

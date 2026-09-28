@@ -114,7 +114,8 @@ kbd{font-family:var(--ui);font-weight:700;font-size:.78em;padding:.05em .45em;bo
 .edge .ar{position:absolute;inset:5px;border-radius:50%;background:var(--c);box-shadow:0 4px 16px rgba(20,6,40,.4),inset 0 0 0 2px rgba(255,255,255,.35)}
 .edge .ar::after{content:"";position:absolute;right:-10px;top:50%;margin-top:-7px;border-style:solid;border-width:7px 0 7px 11px;border-color:transparent transparent transparent var(--c)}
 .edge b{position:relative;font-weight:800;font-size:13px;color:#fff;line-height:1}
-.edge.heart{--c:#ff5f9e}.edge.heart.on{animation:beat .9s ease-in-out infinite}
+.edge.heart{--c:#ff5f9e}.edge.heart.on{animation:beatScale .9s ease-in-out infinite}
+@keyframes beatScale{50%{scale:1.15}}
 .edge.guide{--c:var(--accent)}
 @keyframes beat{50%{transform:scale(1.15)}}
 .plabel svg{width:14px;height:14px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -128,6 +129,15 @@ kbd{font-family:var(--ui);font-weight:700;font-size:.78em;padding:.05em .45em;bo
 #combo .cmeter i{display:block;height:100%;width:0;border-radius:7px;background:linear-gradient(90deg,#ff7ab8,#ffd36b,#7fe7ff,#b9ffb0);transition:width .15s}
 #combo.ready{background:linear-gradient(100deg,rgba(255,122,184,.55),rgba(127,231,255,.5));animation:pulse 1s ease-in-out infinite}
 #burst.nova .orb{background:conic-gradient(#ff7ab8,#ffd36b,#b9ffb0,#7fe7ff,#b47cff,#ff7ab8);animation:pulse .8s ease-in-out infinite}
+#moves{position:absolute;left:calc(16px + var(--safe-l));bottom:calc(84px + var(--safe-b));display:flex;flex-direction:column;gap:6px;padding:10px 14px;border-radius:16px;font-size:13px;font-weight:600;color:var(--cream-dim)}
+#moves div{display:flex;align-items:center;gap:9px}
+#moves b{color:var(--cream);margin-right:4px}
+#moves kbd{min-width:44px;text-align:center}
+#moves.cd .mv1{opacity:.45;transition:opacity .15s}
+#moves .mv1{transition:opacity .3s}
+@media (max-width:640px){#moves{font-size:12px;padding:8px 11px;max-width:calc(100vw - 190px)}#moves span{display:flex;flex-direction:column;gap:1px}#moves kbd{min-width:38px}}
+#moves.ready div:last-child b{background:linear-gradient(90deg,#ff7ab8,#ffd36b,#7fe7ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.touch #moves{bottom:calc(24px + var(--safe-b))}
 .pop{position:absolute;left:0;top:0;font-family:var(--display);font-size:30px;white-space:nowrap;pointer-events:none;padding:0 .25em;background:linear-gradient(90deg,#fff3b0,#ff7ab8 45%,#7fe7ff);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 3px 0 rgba(60,20,90,.55));animation:popUp .9s cubic-bezier(.2,1.4,.4,1) forwards}
 @keyframes popUp{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}20%{opacity:1;transform:translate(-50%,-90%) scale(1.15)}100%{opacity:0;transform:translate(-50%,-180%) scale(1)}}
 #nightbar.hurt .heart{animation:beat .5s ease-in-out infinite}
@@ -272,6 +282,7 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
   #hud-top{left:16px;right:16px;top:calc(68px + var(--safe-t));transform:none}
   #isleName{max-width:calc(100vw - 250px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   #guide{position:fixed;left:16px;right:16px;top:calc(118px + var(--safe-t));max-width:none;justify-content:center;margin:0}
+  .atnight #guide{display:none}
   #income{display:none}
   #isleName{font-size:22px}
   #sparks{font-size:22px}
@@ -322,6 +333,7 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
       <div class="k" id="pKey">Hold <kbd>Space</kbd> to build</div>
     </div>
 
+    <div id="moves" class="pill" hidden></div>
     <div id="burst" class="ready"><div class="orb"><span>E</span></div><div>Bloom Burst</div></div>
 
     <button id="nightBtn" hidden><svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg><span class="col"><span>Begin Night</span><span class="sub" id="nightSub">Enter</span></span></button>

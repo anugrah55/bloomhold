@@ -249,6 +249,7 @@ const UI = {
         <kbd>E</kbd><span><b>Bloom Burst</b> paints every Gloom nearby and rings the flowers around you.</span>
         <kbd>Combo</kbd><span><b>Petal Strike:</b> dash (Shift) through Gloom at night. Paint 5 in a row for <b>Bloom Nova</b>, then press E.</span>
         <kbd>Enter</kbd><span><b>Begin the night</b> from anywhere.</span>
+        <kbd>R</kbd><span><b>Mend the kingdom</b> at the Heart. Wrecked buildings stay broken until you restore them.</span>
         <kbd>V</kbd><span><b>Vibe mode.</b> The camera drifts and time flows on its own.</span>
         <kbd>M</kbd><span><b>Islands</b> map.</span>
         <kbd>H</kbd><span><b>Hide the HUD.</b></span>
@@ -395,7 +396,7 @@ const Guide = {
     { text: () => 'Ride to the glowing ring', target: () => plotTarget(nearestPlot('tower') || nearestPlot()), done: () => !!Game.focus },
     { text: () => `Build a Paint Tower: ${holdWord()}`, target: () => plotTarget(nearestPlot('tower')), done: () => G.plots.some(p => p.type === 'tower' && p.level), skip: () => !nearestPlot('tower') },
     { text: () => 'Build a Cottage. It pays sparks every dawn', target: () => plotTarget(nearestPlot('cottage')), done: () => G.plots.some(p => p.type === 'cottage' && p.level), skip: () => !nearestPlot('cottage') || G.sparks < 3 && !nearestPlot('cottage').paid },
-    { text: () => `Ride to the Heart and ${holdWord()} to call the night`, target: () => ({ x: 0, y: Heart.y, z: 0, h: 9.5 }), done: () => G.state !== 'day' },
+    { text: () => Game.wrecked().length ? (G.sparks > 0 ? 'Mend the wrecked buildings at the Heart' : 'Out of sparks: begin the night to earn more') : `Ride to the Heart and ${holdWord()} to call the night`, target: () => ({ x: 0, y: Heart.y, z: 0, h: 9.5 }), done: () => G.state !== 'day' },
     { text: () => G.mode === 'zen' ? 'A quiet night. Ride through fireflies to collect them' : 'Ride to the Gloom. You and your towers paint them on your own', target: () => { const e = nearestEnemy(Player.pos.x, Player.pos.z, 80); return e && { x: e.x, y: e.y, z: e.z, h: 2.4 }; }, done: () => G.state === 'dawn' || G.state === 'day' },
     { text: () => 'Dawn pays every building. Spend it and keep growing', target: () => null, done: () => G.state === 'day' && Guide.dayT > 8 },
   ],
@@ -493,6 +494,7 @@ const Game = {
     if (G.isle) G.isle.dispose();
     // build
     G.isleIdx = idx; SAVE.current = idx;
+    this.mendInflight = 0; this.autoMend = false;
     const def = ISLANDS[idx];
     G.isle = generateIsland(def);
     Heart.init(G.isle, idx);
@@ -500,7 +502,7 @@ const Game = {
     G.plots = G.isle.plotSpots.map(s => new Plot(s, G.isle));
     G.plots.forEach(p => {
       const s = sv.plots[p.id];
-      if (s) { p.paid = s.p || 0; if (s.l) p.setLevel(s.l, false); }
+      if (s) { p.paid = s.p || 0; if (s.l) p.setLevel(s.l, false); if (s.l && s.w) p.setGrey(true, false); }
       p.setVisible(p.spot.unlock <= sv.nights || p.level > 0, false);
     });
     G.bunnies = Array.from({ length: 8 }, () => new Bunny(G.isle));
@@ -621,6 +623,7 @@ const Game = {
     }
   },
   travel(idx) {
+    this.autoMend = false;
     UI.closeModal();
     if (idx === G.isleIdx) return;
     if (G.vibe) this.toggleVibe(false);
@@ -638,6 +641,72 @@ const Game = {
     Achieve('travel1');
   },
 
+  wrecked() { return G.plots.filter(p => p.level && p.grey && !p.mending); },
+  repairCost() { return this.wrecked().reduce((s, p) => s + p.level * 2, 0); },
+  // Paid-in credit lives in each island's save, so it survives reloads and never leaks between islands.
+  get mendPaid() { return G.isleSave.mend || 0; },
+  set mendPaid(v) { G.isleSave.mend = Math.max(0, v); },
+  mendInflight: 0, mendT: 0, mendN: 0,
+  mendQueue() { return this.wrecked().sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z)); },
+  // Restore every wreck the credit already covers, nearest first.
+  settleMend() {
+    let head = this.mendQueue()[0];
+    while (head && this.mendPaid >= head.level * 2) {
+      this.mendPaid -= head.level * 2;
+      this.mendPlot(head);
+      head = this.mendQueue()[0];
+    }
+    if (!head && this.mendPaid) { G.sparks = G.sparks + this.mendPaid; this.mendPaid = 0; } // nothing left to mend: give credit back
+  },
+  // One spark flies from Floof into the Heart. It's only spent when it lands, so a coin cleared by travel or reset costs nothing.
+  mendOne() {
+    this.settleMend();
+    const q = this.mendQueue();
+    if (!q.length || this.mendPaid + this.mendInflight >= this.repairCost()) return 'full';
+    if (G.sparks - this.mendInflight <= 0) { AudioEngine.play('deny'); UI.deny(); return 'broke'; }
+    const isle = G.isle, pip = this.mendPaid + this.mendInflight;
+    this.mendInflight++;
+    Coins.fly({ x: Player.pos.x, y: Player.pos.y + 1.6, z: Player.pos.z }, () => ({ x: 0, y: Heart.y + 4.2, z: 0 }), 0.34, () => {
+      if (G.isle !== isle) return;
+      this.mendInflight = Math.max(0, this.mendInflight - 1);
+      if (G.sparks <= 0) return;
+      G.sparks = G.sparks - 1;
+      this.mendPaid = this.mendPaid + 1;
+      AudioEngine.play('coinPay', { i: pip, vol: 0.7 });
+      Sparkles.emit(0, Heart.y + 4.2, 0, { n: 6, color: [0xffd36b, isle.pal.accent], speed: 2.5, life: 0.6, size: 0.35, bright: 1.8 });
+      Heart.pulse = 1;
+      this.settleMend();
+      saveSoon();
+    }, 0, 1.6);
+    return 'paid';
+  },
+  mendPlot(p) {
+    const isle = G.isle, sv = G.isleSave, hy = Heart.y + 4.5;
+    p.mending = true;
+    Heart.pulse = 1;
+    Rings.emit(0, Heart.y, 0, { color: isle.pal.accent, r0: 0.8, r1: 9, life: 0.8, bright: 1.8 });
+    // a ribbon of light arcs from the Heart to the wreck
+    for (let k = 0; k <= 12; k++) setTimeout(() => {
+      if (G.isle !== isle) return;
+      const t = k / 12;
+      Sparkles.emit(p.x * t, lerp(hy, p.y + 1.5, t) + Math.sin(t * Math.PI) * 3.2, p.z * t, { n: 5, color: isle.pal.flower, speed: 0.6, up: 0.3, life: 0.8, size: 0.6, gravity: 0, bright: 2 });
+    }, k * 32);
+    setTimeout(() => {
+      if (G.isle !== isle) { if (sv.plots[p.id]) sv.plots[p.id].w = 0; saveSoon(); return; }
+      if (!p.grey) return;
+      p.setGrey(false, true);
+      AudioEngine.play('regrow', { pan: panOf(p.x) });
+      if (!G.plots.some(q => q.level && q.grey)) {
+        UI.banner('Restored', 'The Heart mended every broken home.');
+        AudioEngine.play('upgrade');
+        Rings.emit(0, Heart.y, 0, { color: 0xffffff, r0: 0.5, r1: 16, life: 1.2, bright: 1.6 });
+        Sparkles.emit(0, hy, 0, { n: 60, color: isle.pal.flower, speed: 7, up: 5, life: 1.4, size: 0.55, bright: 1.6 });
+        Butterflies.burst(0, hy, 0, 6);
+        Cam.shake(0.25);
+      }
+    }, 460);
+    saveSoon();
+  },
   // Enter / button: if sparks could still buy something, ask once more instead of starting right away
   requestNight() {
     if (G.state !== 'day' || G.vibe) return;
@@ -695,8 +764,9 @@ const Game = {
       }
     });
     // regrow
-    let delay = 0;
-    G.plots.forEach(p => { if (p.grey) { const pp = p; delay += 0.25; setTimeout(() => { pp.setGrey(false); AudioEngine.play('regrow', { pan: panOf(pp.x) }); }, 1500 + delay * 1000); } });
+    const wrecked = G.plots.filter(p => p.level && p.grey).length;
+    const dawnIsle = G.isle;
+    if (wrecked) setTimeout(() => { if (G.isle !== dawnIsle) return; const c = Math.max(0, this.repairCost() - this.mendPaid); UI.toast(`${wrecked} building${wrecked > 1 ? 's were' : ' was'} wrecked. Mend ${wrecked > 1 ? 'them' : 'it'} at the Heart for <b>${c} spark${c === 1 ? '' : 's'}</b>`); }, 4200);
     if (Heart.grey) setTimeout(() => { Heart.setGrey(false); AudioEngine.play('regrow'); }, 1200);
     Heart.hp = Heart.maxHp;
     if (counted) {
@@ -784,6 +854,7 @@ const Game = {
         if (e.update(dt, t)) { e.dispose(); G.enemies.splice(i, 1); }
       }
       G.plots.forEach(p => p.update(dt, t));
+      Combo.lockT = Math.max(0, (Combo.lockT || 0) - dt);
       G.sprites.forEach(s => s.update(dt, t));
       G.villagers.forEach(v => v.update(dt, t));
       G.bunnies.forEach(b => b.update(dt, t));
@@ -929,7 +1000,7 @@ const Game = {
     let focus = null, fd = 2.1;
     if (st === 'day' && P.alive && !G.vibe) {
       for (const p of G.plots) {
-        if (!p.visible || p.level >= 3) continue;
+        if (!p.visible || p.level >= 3 || p.grey) continue;
         const d = p.type === 'hedge' ? segDist(P.pos.x, P.pos.z, p.ax, p.az, p.bx, p.bz) - 0.4 : Math.hypot(P.pos.x - p.x, P.pos.z - p.z) - (p.level ? p.radius : p.rad * 0.7);
         if (d < fd) { fd = d; focus = p; }
       }
@@ -955,7 +1026,20 @@ const Game = {
     } else { this.payT = 0; this.payN = 0; }
     // heart: hold to call the night
     const nearHeart = st === 'day' && !focus && P.alive && Math.hypot(P.pos.x, P.pos.z) < 6.8 && !G.vibe;
-    if (nearHeart && holding) {
+    const mending = nearHeart && this.wrecked().length > 0 && !(this.travelT > 0);
+    if (mending && (Input.hit('KeyR') || (tapMode && pressed))) this.autoMend = true;
+    if (!mending) this.autoMend = false;
+    if (mending) { this.mendLock = true; if (this.auto === 'heart') this.auto = null; }
+    if (!holding) this.mendLock = false;
+    if (mending && (holding || this.autoMend)) {
+      this.mendT -= dt;
+      if (this.mendT <= 0) {
+        const r = this.mendOne();
+        if (r === 'paid') { this.mendN++; this.mendT = Math.max(0.06, 0.14 - this.mendN * 0.01); }
+        else { this.mendT = r === 'broke' ? 0.7 : 0.1; if (r === 'broke') this.autoMend = false; }
+      }
+    } else { this.mendT = 0; this.mendN = 0; }
+    if (nearHeart && holding && !mending && !this.mendLock) {
       this.holdT += dt;
       this.holdTick -= dt;
       if (this.holdTick <= 0) { this.holdTick = 0.22; AudioEngine.play('hold', { i: Math.floor(this.holdT / 0.22) }); }
@@ -978,6 +1062,15 @@ const Game = {
         desc: d.desc[f.level],
         pips: cost, paid: f.paid,
         key: poor ? `You need ${need - G.sparks} more spark${need - G.sparks === 1 ? '' : 's'}. Paint Gloom or wait for dawn.` : holdHint(f.level ? 'upgrade' : 'build'),
+        poor,
+      });
+    } else if (this.nearHeart && this.wrecked().length) {
+      const n = this.wrecked().length, cost = this.repairCost(), left = cost - this.mendPaid - this.mendInflight, poor = G.sparks - this.mendInflight <= 0 && left > 0;
+      UI.setPrompt({
+        title: 'Mend the kingdom',
+        desc: `${n} building${n > 1 ? 's are' : ' is'} wrecked. Each one blooms back as soon as its sparks are paid, nearest first.`,
+        pips: Math.min(cost, 30), paid: Math.min(this.mendPaid, 30),
+        key: poor ? `Out of sparks. Begin the night (${touch ? 'the moon button' : Input.last === 'pad' ? '<kbd>Y</kbd>' : '<kbd>Enter</kbd>'}) and paint Gloom to earn more.` : holdHint('mend') + (Input.last === 'kb' ? ' · <kbd>R</kbd> mends all you can afford' : ''),
         poor,
       });
     } else if (this.nearHeart) {
@@ -1014,6 +1107,10 @@ const Game = {
         }
         for (const sc of sectors.values()) edges.push({ sx: sc.sx / sc.n, sy: sc.sy / sc.n, behind: sc.behind, kind: 'gloom', text: String(sc.n) });
       }
+      if (st === 'day' && this.wrecked().length && !this.nearHeart) {
+        const hp = Edges.project(0, Heart.y + 4, 0);
+        if (!Edges.onScreen(hp, 60)) edges.push({ ...hp, kind: 'heart', text: '♥' });
+      }
       if (Guide.target && st === 'day') {
         const gp = Edges.project(Guide.target.x, Guide.target.y + 1, Guide.target.z);
         if (!Edges.onScreen(gp, 40)) edges.push({ ...gp, kind: 'guide', text: '✦' });
@@ -1033,6 +1130,9 @@ const Game = {
     // touch controls only while riding
     const tb = SAVE.settings.buildMode === 'tap' ? 'Tap to build' : 'Hold to build';
     if (UI.cache.tb !== tb) { UI.cache.tb = tb; $('tBuild').textContent = tb; }
+    const tBuildHide = st !== 'day';
+    if ($('tBuild').hidden !== tBuildHide) $('tBuild').hidden = tBuildHide;
+    $('app').classList.toggle('atnight', st === 'night' || st === 'dusk');
     const tEl = $('touch');
     const tHide = G.vibe || !!UI.modal;
     if (tEl.hidden !== tHide) tEl.hidden = tHide;
@@ -1041,11 +1141,27 @@ const Game = {
     const showCombo = st === 'night' && G.mode !== 'zen' && (Combo.n >= 2 || Combo.ready);
     if (cb.hidden === showCombo) cb.hidden = !showCombo;
     if (showCombo) {
-      const ct = Combo.ready ? 'Bloom Nova ready · press E' : `Combo ×${Combo.n}`;
+      const novaKey = touch ? 'tap Burst' : Input.last === 'pad' ? 'press X' : 'press E';
+      const ct = Combo.ready ? `Bloom Nova ready · ${novaKey}` : `Combo ×${Combo.n}`;
       if (UI.cache.combo !== ct) { UI.cache.combo = ct; $('comboText').textContent = ct; cb.classList.toggle('ready', Combo.ready); }
-      $('comboFill').style.width = (Math.min(1, Combo.n / NOVA_AT) * 100 * (Combo.ready ? 1 : Math.max(0.15, Combo.t / 3.2) ** 0.3)).toFixed(0) + '%';
+      $('comboFill').style.width = (Combo.ready ? 100 : Math.min(1, Combo.n / NOVA_AT) * 100 * Math.max(0.15, Combo.t / 3.2) ** 0.3).toFixed(0) + '%';
     }
     $('burst').classList.toggle('nova', Combo.ready);
+    const mv = $('moves');
+    const showMoves = (st === 'night' || st === 'dusk') && G.mode !== 'zen' && !G.vibe && Player.alive;
+    if (mv.hidden === showMoves) mv.hidden = !showMoves;
+    if (showMoves) {
+      const t = touch ? 'touch' : Input.last === 'pad' ? 'pad' : 'kb';
+      const nova = Combo.ready ? 'ready, press now!' : Combo.n ? `combo ${Math.min(Combo.n, NOVA_AT)} / ${NOVA_AT}` : `after a ${NOVA_AT}-paint combo`;
+      if (UI.cache.moves !== t) {
+        UI.cache.moves = t; UI.cache.nova = '';
+        const k = t === 'pad' ? ['B', 'X'] : t === 'touch' ? ['Dash', 'Burst'] : ['Shift', 'E'];
+        mv.innerHTML = `<div class="mv1"><kbd>${k[0]}</kbd><span><b>Petal Strike</b> Dash through Gloom</span></div><div class="mv2"><kbd>${k[1]}</kbd><span><b>Bloom Nova</b> <i id="mvNova"></i></span></div>`;
+      }
+      if (UI.cache.nova !== nova) { UI.cache.nova = nova; $('mvNova').textContent = nova; }
+      mv.classList.toggle('ready', Combo.ready);
+      mv.classList.toggle('cd', Player.dashCd > 0);
+    }
     // night bar
     const nb = $('nightbar');
     const showNB = (st === 'night' || st === 'dusk') && G.mode !== 'zen';
@@ -1085,6 +1201,8 @@ const Game = {
           : `${icon}${near ? `<span class="nm">${p.def.name}</span>` : ''}<i class="gem"></i>${need}`;
         list.push({ x: p.x, y: p.y + h, z: p.z, html, cls: p === this.focus ? 'focus' : '', op: clamp(1.4 - d / 22, 0.35, 1) });
       }
+      for (const p of G.plots) if (p.grey && p.level && Math.hypot(p.x - P.x, p.z - P.z) < 26) list.push({ x: p.x, y: p.y + 2.2, z: p.z, html: p.mending ? 'Mending…' : 'Wrecked · mend at the Heart', cls: 'rift', op: 0.9 });
+      if (this.wrecked().length && !this.nearHeart) list.push({ x: 0, y: Heart.y + 10, z: 0, html: `Mend here&nbsp;<i class="gem"></i>${Math.max(0, this.repairCost() - this.mendPaid)}`, cls: 'focus', op: 1 });
       if (this.plan && G.mode !== 'zen') this.plan.rifts.forEach(ri => {
         const r = G.isle.rifts[ri];
         const kinds = {};

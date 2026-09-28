@@ -45,6 +45,7 @@ Nothing is ever lost for good. If the Gloom drains a building, it goes grey and 
 | `E` | Bloom Burst: paints nearby Gloom and rings the flowers around you |
 | Combos | **Petal Strike:** dash through Gloom at night. Chain 5 paints and press `E` for **Bloom Nova** |
 | `Enter` | Begin the night |
+| `R` (at the Heart) | Spend sparks to restore every building the Gloom wrecked |
 | `V` | Vibe mode |
 | `M` | Island map |
 | `Tab` (hold) | Peek at the whole island |
