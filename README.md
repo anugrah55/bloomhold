@@ -43,6 +43,7 @@ Nothing is ever lost for good. If the Gloom drains a building, it goes grey and 
 | `Space` (hold) | Pay sparks into a glowing plot to build or upgrade. Hold at the Heart to call the night |
 | `Shift` | Dash |
 | `E` | Bloom Burst: paints nearby Gloom and rings the flowers around you |
+| Combos | **Petal Strike:** dash through Gloom at night. Chain 5 paints and press `E` for **Bloom Nova** |
 | `Enter` | Begin the night |
 | `V` | Vibe mode |
 | `M` | Island map |

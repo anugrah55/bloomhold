@@ -10,6 +10,54 @@ const G = {
   set sparks(v) { this.isleSave.sparks = Math.max(0, Math.round(v)); UI.sparks(this.isleSave.sparks); },
 };
 const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3();
+
+// ============================================================================
+// Combos: chain paints at night, dash-strike through Gloom, unleash Bloom Nova
+// ============================================================================
+const NOVA_AT = 5;
+const Combo = {
+  n: 0, t: 0, ready: false, stopT: 0, slowT: 0,
+  add(x, y, z, color) {
+    if (G.state !== 'night') return;
+    this.n++; this.t = 3.2;
+    if (this.n >= 2) popText('×' + this.n, x, y + 2.2, z);
+    if (this.n >= NOVA_AT && !this.ready) {
+      this.ready = true;
+      UI.toast('<b>Bloom Nova ready</b>&nbsp;· press E');
+      AudioEngine.play('achievement', { vol: 0.6 });
+    }
+  },
+  hitStop(d) { this.stopT = Math.max(this.stopT, d); },
+  slowmo(d) { this.slowT = Math.max(this.slowT, d); },
+  // returns the time scale for this frame
+  tick(raw) {
+    if (G.state !== 'night') { this.n = 0; this.ready = false; }
+    this.t -= raw; if (this.t <= 0) this.n = 0;
+    if (this.stopT > 0) { this.stopT -= raw; return 0.06; }
+    if (this.slowT > 0) { this.slowT -= raw; return 0.35 + 0.65 * (1 - Math.min(1, this.slowT / 0.9)) * 0.3; }
+    return 1;
+  },
+};
+function popText(txt, x, y, z) {
+  _v2.set(x, y, z).project(camera);
+  if (_v2.z > 1) return;
+  const el = document.createElement('div');
+  el.className = 'pop';
+  el.textContent = txt;
+  el.style.left = ((_v2.x + 1) / 2 * innerWidth) + 'px';
+  el.style.top = ((1 - _v2.y) / 2 * innerHeight) + 'px';
+  document.getElementById('labels').appendChild(el);
+  setTimeout(() => el.remove(), 950);
+}
+// A prismatic star of light rays: the finishing flourish on a painted Gloom
+function starBurst(x, y, z, scale = 1) {
+  const cols = flowerColors();
+  for (let k = 0; k < 12; k++) {
+    const a = k / 12 * TAU;
+    Sparkles.emit(x, y, z, { n: 4, color: cols[k % cols.length], speed: 0.6, vx: Math.cos(a) * 11 * scale, vz: Math.sin(a) * 11 * scale, up: 1.5, life: 0.55, size: 0.55 * scale, gravity: 0, drag: 4, bright: 2 });
+  }
+  Rings.emit(x, y - 0.4, z, { color: 0xffffff, r0: 0.2, r1: 3.2 * scale, life: 0.4, bright: 2.2 });
+}
 const GREY = new THREE.Color(0x8e88ac);
 const GLOOM_EMISSIVE = new THREE.Color(0x2a2244);
 
@@ -129,8 +177,31 @@ const Player = {
     if (t) return t.getWorldPosition(out);
     return out.set(this.pos.x, this.pos.y + 2.2, this.pos.z);
   },
+  nova() {
+    Combo.ready = false; Combo.n = 0;
+    this.burstCd = 9;
+    const { x, y, z } = this.pos;
+    const cols = flowerColors();
+    Combo.hitStop(0.12); Combo.slowmo(1.1);
+    Cam.shake(0.8);
+    UI.banner('Bloom Nova', 'Every color at once.');
+    AudioEngine.play('burst'); AudioEngine.play('wish'); AudioEngine.play('upgrade');
+    [G.isle.pal.accent, cols[0], cols[1], cols[2], cols[4]].forEach((c, i) => Rings.emit(x, y + i * 0.05, z, { color: c, r0: 0.4 + i * 0.3, r1: 14 - i * 1.8, life: 0.8 + i * 0.18, bright: 1.5 }));
+    for (let k = 0; k < 40; k++) { const a = k / 40 * TAU * 3, r = k * 0.28; Sparkles.emit(x + Math.cos(a) * r, y + 0.5 + k * 0.12, z + Math.sin(a) * r, { n: 2, color: cols[k % cols.length], speed: 1, up: 3, life: 1.4, size: 0.55, gravity: -1, bright: 1.5 }); }
+    Sparkles.emit(x, y + 1, z, { n: 55, color: cols, speed: 4, up: 14, life: 1.6, size: 0.5, gravity: -8, bright: 1.3 });
+    Confetti.emit(x, y + 2, z, { n: 120, color: cols, speed: 12, up: 10 });
+    Butterflies.burst(x, y + 1, z, 10, 1.3);
+    this.staffWorld(_v1);
+    const targets = G.enemies.filter(e => e.alive && dist2(e.x, e.z, x, z) < 16 * 16);
+    for (let k = 0; k < 18 && targets.length; k++) {
+      const e = targets[k % targets.length];
+      Bolts.fire(_v1.x, _v1.y, _v1.z, e, { color: cols[k % cols.length], dmg: 2, speed: 16 + k, size: 1.5 });
+    }
+    for (const e of targets) { const d = Math.hypot(e.x - x, e.z - z); e.hurt(12 * (1 - d / 22), pick(cols)); }
+  },
   burst() {
     if (this.burstCd > 0 || !this.alive) return;
+    if (Combo.ready && G.state === 'night') return this.nova();
     this.burstCd = 9;
     const { x, y, z } = this.pos;
     const cols = flowerColors();
@@ -183,6 +254,7 @@ const Player = {
       const dx = l > 0.1 ? ax.x / l : Math.sin(this.yaw), dz = l > 0.1 ? ax.y / l : Math.cos(this.yaw);
       this.vel.set(dx * 22, 0, dz * 22);
       this.dashT = 0.2; this.dashCd = 1.0;
+      this.dashHits = new Set();
       AudioEngine.play('dash');
     }
     UI.touchDash = false;
@@ -190,7 +262,21 @@ const Player = {
     UI.touchBurst = false;
     if (this.dashT > 0) {
       this.dashT -= dt;
-      Sparkles.emit(this.pos.x, this.pos.y + 0.6, this.pos.z, { n: 3, color: flowerColors(), speed: 1.5, life: 0.6, size: 0.45, up: 0.5 });
+      const night = G.state === 'night';
+      Sparkles.emit(this.pos.x, this.pos.y + 0.6, this.pos.z, { n: night ? 7 : 3, color: flowerColors(), speed: 1.5, life: night ? 0.9 : 0.6, size: night ? 0.6 : 0.45, up: 0.5, bright: night ? 2 : 1.4 });
+      // Petal Strike: dashing through Gloom at night paints them hard
+      if (night) for (const e of G.enemies) {
+        if (!e.alive || e.spawnT < 0.4 || (this.dashHits && this.dashHits.has(e))) continue;
+        if (dist2(e.x, e.z, this.pos.x, this.pos.z) > Math.pow(1.4 + e.radius, 2)) continue;
+        this.dashHits && this.dashHits.add(e);
+        const col = pick(flowerColors());
+        e.hurt(3.5, col);
+        Combo.hitStop(0.07); Cam.shake(0.25);
+        Rings.emit(e.x, e.y + 0.2, e.z, { color: col, r0: 0.2, r1: 2.4, life: 0.35, bright: 2.4 });
+        Sparkles.emit(e.x, e.y + e.hitH, e.z, { n: 18, color: [col, 0xffffff], speed: 7, life: 0.5, size: 0.5, up: 1, bright: 2.2 });
+        popText('Petal Strike', e.x, e.y + 3, e.z);
+        AudioEngine.play('hit', { vol: 0.9 }); AudioEngine.play('chime', { vol: 0.4 });
+      }
     } else {
       const k = 1 - Math.exp(-10 * dt);
       this.vel.x += (ax.x * speed - this.vel.x) * k;
@@ -654,6 +740,8 @@ class Enemy {
         G.enemies.push(e); Game.waveTotal++;
       }
     }
+    Combo.add(x, y, z, this.paint);
+    if (Combo.n >= 2 || this.type === 'boss') { starBurst(x, y, z, this.type === 'boss' ? 2 : 1 + Math.min(Combo.n, 6) * 0.08); Combo.hitStop(0.045); }
     Game.onHealed(this);
   }
   fade() { // dissolves without reward (when the Heart dims)

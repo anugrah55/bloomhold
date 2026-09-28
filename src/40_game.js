@@ -247,6 +247,7 @@ const UI = {
         <kbd>Space</kbd><span><b>Hold on a glowing plot</b> to pay sparks and build. Hold at the Heart to call the night.</span>
         <kbd>Shift</kbd><span><b>Dash</b> for a quick burst of speed.</span>
         <kbd>E</kbd><span><b>Bloom Burst</b> paints every Gloom nearby and rings the flowers around you.</span>
+        <kbd>Combo</kbd><span><b>Petal Strike:</b> dash (Shift) through Gloom at night. Paint 5 in a row for <b>Bloom Nova</b>, then press E.</span>
         <kbd>Enter</kbd><span><b>Begin the night</b> from anywhere.</span>
         <kbd>V</kbd><span><b>Vibe mode.</b> The camera drifts and time flows on its own.</span>
         <kbd>M</kbd><span><b>Islands</b> map.</span>
@@ -1035,6 +1036,16 @@ const Game = {
     const tEl = $('touch');
     const tHide = G.vibe || !!UI.modal;
     if (tEl.hidden !== tHide) tEl.hidden = tHide;
+    // combo meter
+    const cb = $('combo');
+    const showCombo = st === 'night' && G.mode !== 'zen' && (Combo.n >= 2 || Combo.ready);
+    if (cb.hidden === showCombo) cb.hidden = !showCombo;
+    if (showCombo) {
+      const ct = Combo.ready ? 'Bloom Nova ready · press E' : `Combo ×${Combo.n}`;
+      if (UI.cache.combo !== ct) { UI.cache.combo = ct; $('comboText').textContent = ct; cb.classList.toggle('ready', Combo.ready); }
+      $('comboFill').style.width = (Math.min(1, Combo.n / NOVA_AT) * 100 * (Combo.ready ? 1 : Math.max(0.15, Combo.t / 3.2) ** 0.3)).toFixed(0) + '%';
+    }
+    $('burst').classList.toggle('nova', Combo.ready);
     // night bar
     const nb = $('nightbar');
     const showNB = (st === 'night' || st === 'dusk') && G.mode !== 'zen';
@@ -1224,10 +1235,11 @@ function frame() {
   const dt = Math.min(raw, 0.05);
   const steps = (window.__bh && window.__bh.steps) || 1;
   if (steps === 1) adaptResolution(raw);
+  const ts = Combo.tick(dt);
   try {
     for (let k = 0; k < steps; k++) {
-      G.time += dt;
-      Game.update(dt);
+      G.time += dt * ts;
+      Game.update(dt * ts);
       if (k < steps - 1) Input.endFrame();
     }
     composer.render();
@@ -1249,7 +1261,7 @@ function boot(data) {
   UI.init();
   Cam.update(0.016, 0);
   setTimeout(() => $('loading').classList.add('out'), 350);
-  if (/[?&]debug/.test(location.search)) window.__bh = { G, Game, Player, Heart, Cam, UI, Enemy, TOD, renderer, get SAVE() { return SAVE; } };
+  if (/[?&]debug/.test(location.search)) window.__bh = { G, Game, Player, Heart, Cam, UI, Enemy, TOD, renderer, Combo, get SAVE() { return SAVE; } };
   frame();
 }
 try { if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => ({ save: SAVE })); } catch (e) { /* no hot reload */ }

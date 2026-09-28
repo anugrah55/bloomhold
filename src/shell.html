@@ -123,6 +123,13 @@ kbd{font-family:var(--ui);font-weight:700;font-size:.78em;padding:.05em .45em;bo
 .hpbar{display:block;width:46px;height:6px;border-radius:6px;background:rgba(255,247,238,.18);overflow:hidden}
 .hpbar i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,#ff7aa8,#ffd36b)}
 .hpl.me .hpbar i{background:linear-gradient(90deg,#7fe7ff,#b9ffb0)}
+#combo{display:flex;align-items:center;gap:10px;padding:6px 14px;font-family:var(--display);font-size:17px;animation:toastIn .4s cubic-bezier(.2,1.6,.4,1)}
+#combo .cmeter{width:90px;height:7px;border-radius:7px;background:rgba(255,247,238,.15);overflow:hidden}
+#combo .cmeter i{display:block;height:100%;width:0;border-radius:7px;background:linear-gradient(90deg,#ff7ab8,#ffd36b,#7fe7ff,#b9ffb0);transition:width .15s}
+#combo.ready{background:linear-gradient(100deg,rgba(255,122,184,.55),rgba(127,231,255,.5));animation:pulse 1s ease-in-out infinite}
+#burst.nova .orb{background:conic-gradient(#ff7ab8,#ffd36b,#b9ffb0,#7fe7ff,#b47cff,#ff7ab8);animation:pulse .8s ease-in-out infinite}
+.pop{position:absolute;left:0;top:0;font-family:var(--display);font-size:30px;white-space:nowrap;pointer-events:none;padding:0 .25em;background:linear-gradient(90deg,#fff3b0,#ff7ab8 45%,#7fe7ff);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 3px 0 rgba(60,20,90,.55));animation:popUp .9s cubic-bezier(.2,1.4,.4,1) forwards}
+@keyframes popUp{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}20%{opacity:1;transform:translate(-50%,-90%) scale(1.15)}100%{opacity:0;transform:translate(-50%,-180%) scale(1)}}
 #nightbar.hurt .heart{animation:beat .5s ease-in-out infinite}
 #nightbar.hurt .meter i{background:linear-gradient(90deg,#ff5f9e,#ff9a6a)}
 #prompt{pointer-events:auto;cursor:pointer;touch-action:none}
@@ -296,6 +303,7 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
       <div id="nightbar" class="pill" hidden>
         <i class="heart"></i><div class="meter"><i id="heartMeter"></i></div><span id="healCount">0 / 0</span>
       </div>
+      <div id="combo" class="pill" hidden><span id="comboText">Combo ×2</span><div class="cmeter"><i id="comboFill"></i></div></div>
       <div id="toasts"></div>
     </div>
     <div id="hud-tr">
