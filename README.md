@@ -11,6 +11,10 @@ Made to feel good slowly. Headphones on.*
 
 **[▶ Play in your browser](https://YOUR-USERNAME.github.io/bloomhold/)**
 
+<br>
+
+<img src="docs/screenshot.png" alt="Bloomhold title screen: a floating low-poly island of pink blossom trees at night under a violet sky, with a shooting star and the rainbow Bloomhold logo" width="100%">
+
 </div>
 
 ---
