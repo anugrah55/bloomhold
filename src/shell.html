@@ -237,7 +237,7 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
 #title.out{opacity:0;pointer-events:none}
 #title .inner{max-width:min(780px,100%);display:flex;flex-direction:column;gap:14px}
 #title .eyebrow{font-weight:800;font-size:13px;letter-spacing:.22em;text-transform:uppercase;color:var(--cream-dim)}
-#title h1{margin:0;font-family:var(--display);font-weight:400;font-size:clamp(58px,10.5vw,138px);line-height:.95;padding-right:.12em;letter-spacing:-.01em;background:linear-gradient(95deg,#fff4c2,#ffc36b 18%,#ff6fb1 42%,#b47cff 64%,#6fe3ff 84%,#b9ffb0);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 6px 0 rgba(60,20,90,.35)) drop-shadow(0 18px 40px rgba(60,20,90,.4));animation:shimmer 10s ease-in-out infinite alternate;padding-bottom:.08em}
+#title h1{margin:0 -.3em 0 0;display:inline-block;width:fit-content;max-width:calc(100vw - 32px);overflow:visible;font-family:var(--display);font-weight:400;font-size:clamp(58px,10.5vw,138px);line-height:.95;padding-right:.3em;padding-left:.04em;letter-spacing:-.01em;background:linear-gradient(95deg,#fff4c2,#ffc36b 18%,#ff6fb1 42%,#b47cff 64%,#6fe3ff 84%,#b9ffb0);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 6px 0 rgba(60,20,90,.35)) drop-shadow(0 18px 40px rgba(60,20,90,.4));animation:shimmer 10s ease-in-out infinite alternate;padding-bottom:.08em}
 @keyframes shimmer{to{background-position:100% 0}}
 #title p{margin:0;font-size:clamp(16px,1.9vw,20px);font-weight:600;color:var(--cream);max-width:40ch;text-shadow:0 2px 14px rgba(30,10,50,.5)}
 #title .actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:8px}
